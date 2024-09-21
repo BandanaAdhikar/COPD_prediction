@@ -1,66 +1,84 @@
-# import the lbraries
+import streamlit as st
 import pandas as pd
-import pickle 
-import streamlit as st 
+import joblib
 
-#load the trained model
-with open('Best_Random_Forest_Model.pkl','rb')as f:
-    model = pickle.load(f)
+def main():
+    # Load the trained model
+    try:
+        model = joblib.load("./models/best_random_forest_model.pkl", mmap_mode="r")
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return
 
-    #streamlit App
-    def main():
-        st.title("COPD Prediction Dashboard")
+    # Define expected feature columns based on the training set
+    expected_columns = [
+        "Age", "Gender", "Duration_Of_Smoking","Smoking_Status_encoded", "Smoking_Pollution_Interaction","Pollution_Risk_Score","Biomass_Fuel_Exposure", "Occupational_Exposure", "Family_History_COPD",
+        "BMI", "Air_Pollution_Level", "Respiratory_Infections_Childhood", 
+        "Location_Butwal", "Location_Chitwan", "Location_Dharan",
+        "Location_Hetauda", "Location_Kathmandu", "Location_Lalitpur", "Location_Nepalgunj",
+        "Location_Pokhara"
+    ]
 
-        #User input
-        st.sidebar.header("User Input")
+    st.title("COPD Prediction Application")
+    st.write("Enter the input values to predict COPD Diagnosis")
 
-        age= st.sidebar.slider("Age", 30, 80, 50)
-        gender = st.sidebar.selectbox("Gender", ["Male", "Female"])
-        bmi= st.sidebar.slider("BMI", 10, 40, 25)
-        smoking_status = st.sidebar.selectbox("Smoking Status", ["Current", "Former", "Never"])
-        biomass_fuel_exposre = st.sidebar.selectbox("Biomass Fuel Exposure", ["Yes", "No"])
-        occupational_exposure = st.sidebar.selectbox("Occupational Exposure", ["Yes", "No"])
-        family_history = st.sidebar.selectbox("Family History", ["Yes", "No"])
-        air_pollution_level = st.sidebar.slider("Air pollution level", 0, 300, 50)
-        respiratory_infections = st.sidebar.selectbox("Respiratory Infection In Children", ["", ""])
-        location = st.sidebar.selectbox("Location", ["Kathmandu", "Pokhara", "Biratnagar", "Lalitpur", "Birgunj",'Chitwan' ,])
+    # Collect user input for each feature
+    age = st.number_input("Age", min_value=0, max_value=100, value=20)
+    gender = st.selectbox("Gender (0 = Male, 1 = Female)", [0,1])
+    duration_of_smoking = st.number_input("Duration_Of_Smoking", min_value=0, max_value=80, value=0)
+    smoking_status_encoded = st.slider("Smoking Status (0 = Non-smoker, 1 = Smoker)", 0.0, 1.0, 0.5)
+    smoking_pollution_interaction = st.number_input("Smoking Pollution Interaction", min_value=0.0, max_value=100.0, value=0.0)
+    pollution_risk_score = st.number_input("Pollution Risk Score", min_value=0.0, max_value=100.0, value=0.0)
+    biomass_fuel_exposure = st.selectbox("Biomass Fuel Exposure", [0, 1])
+    occupational_exposure = st.selectbox("Occupational Exposure", [0, 1])
+    family_history_copd = st.selectbox("Family History of COPD", [0, 1])
+    bmi = st.number_input("BMI", min_value=10.0, max_value=50.0, value=25.0)
+    air_pollution_level = st.number_input("Air Pollution Level", min_value=0, max_value=500, value=100)
+    respiratory_infections_childhood = st.selectbox("Respiratory Infections in Childhood", [0, 1])
 
-        # Process the input data
-        input_data={
-            'Age' : [age],
-            'Gender' :[gender],
-            'BMI': [bmi],
-            'Smoking Status': [smoking_status],
-            'Biomass Fuel Exposure': [biomass_fuel_exposre],
-            'Occupational Exposure': [biomass_fuel_exposre],
-            'Family History_COPD': [family_history],
-            'Air Pollution Level': [air_pollution_level],
-            'Respiratory Infections': [respiratory_infections],
-            'Location':[location],
-        }
+    # Categorical Location Input
+    location = st.selectbox("Location", ["Pokhara", "Bhaktapur", "Chitwan", "Hetauda", "Kathmandu", "Lalitpur", "Butwal", "Dhading"])
 
-        #Convert the data to a dataframe
-        input_df = pd.DataFrame(input_data)
+    # Create a DataFrame with the input values
+    input_data = pd.DataFrame([{
+        "Age": age,
+        "Gender": gender,
+        "Duration_Of_Smoking": duration_of_smoking,
+        "Biomass_Fuel_Exposure": biomass_fuel_exposure,
+        "Occupational_Exposure": occupational_exposure,
+        "Family_History_COPD": family_history_copd,
+        "BMI": bmi,
+        "Air_Pollution_Level": air_pollution_level,
+        "Respiratory_Infections_Childhood": respiratory_infections_childhood,
+        "Pollution_Risk_Score": pollution_risk_score,
+        "Smoking_Status_encoded": smoking_status_encoded,
+        "Smoking_Pollution_Interaction": smoking_pollution_interaction,
+        "Location_Pokhara": location == "Pokhara",
+        "Location_Bhaktapur": location == "Bhaktapur",
+        "Location_Chitwan": location == "Chitwan",
+        "Location_Hetauda": location == "Hetauda",
+        "Location_Kathmandu": location == "Kathmandu",
+        "Location_Lalitpur": location == "Lalitpur",
+        "Location_Nepalgunj": location == "Nepalgunj",
+        "Location_Butwal": location == "Butwal"
+        "Location_Dhading": location == "Dhading"
 
-        #Encoding
-        input_df['Gender'] = input_df["Gender"].map({'Male':1, 'Female':0})
-        input_df['Smoking_status'] = input_df["Smoking_status"].map({'Current':1, 'Former':0.5, 'Never':0})
-        input_df['Biomass_fuel_exposure'] = input_df["Biomass_fuel_exposure"].map({'Yes':1, 'No':0})
-        input_df['Family_history_COPD'] = input_df["Family_history"].map({'Yes':1, 'No':0})
-        input_df['Respiratory_infections'] = input_df["Respiratory_infections"].map({'Yes':1, 'No':0})
-        input_df = pd.get_dummies(input_df, columns=['Location'], drop_first=True)
-        location_dummies = pd.get_dummies(input_df['Location'],prefix ='Location')
-        input_df = pd.concat([input_df, location_dummies],axis= 1)
+    }])
 
-        input_df.drop('Location',axis =1, inplace =True)
+    # Align input DataFrame with expected columns
+    input_data = input_data.reindex(columns=expected_columns, fill_value=0)
 
-        #Prediction
-        prediction = model.predict(input_df)
-        if prediction[0] == 1:
-            st.write("Predictions: COPD Detected")
-        else:
-            st.write("Predictions: No COPD Detected")
+    # Optional: Display the input data for debugging purposes
+    if st.checkbox("Show Input Data"):
+        st.write(input_data)
 
-            if __name__ == "__main__":
-                main()
+    # Predict using the loaded model
+    if st.button("Predict"):
+        try:
+            prediction = model.predict(input_data)
+            st.write(f"Predicted COPD Diagnosis: {'Positive' if prediction[0] == 1 else 'Negative'}")
+        except Exception as e:
+            st.error(f"Error during prediction: {e}")
 
+if __name__ == "__main__":
+    main()
